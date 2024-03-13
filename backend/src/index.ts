@@ -13,7 +13,7 @@ const app = new Hono<{
 }>().basePath('/api/v1');
 
 app.get('/', (c) => {
-  return c.text('Welcome to Blog website');
+  return c.text('Welcome to Blog Bioshpere');
 });
 
 app.route('/user', userRouter);

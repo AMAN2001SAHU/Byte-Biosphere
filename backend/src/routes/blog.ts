@@ -2,6 +2,10 @@ import { Hono } from 'hono';
 import { decode, sign, verify } from 'hono/jwt';
 import { PrismaClient } from '@prisma/client/edge';
 import { withAccelerate } from '@prisma/extension-accelerate';
+import {
+  createBlogInput,
+  updateBlogInput,
+} from '@tomboto/blogbioshpere-common';
 
 export const blogRouter = new Hono<{
   Bindings: {
@@ -68,18 +72,29 @@ blogRouter.post('/', async (c) => {
   const userId = c.get('userId');
 
   const body = await c.req.json();
+  const { success } = createBlogInput.safeParse(body);
 
-  const post = await prisma.post.create({
-    data: {
-      title: body.title,
-      content: body.content,
-      authorId: userId,
-    },
-  });
+  if (!success) {
+    c.status(400);
+    return c.json({ error: 'Invalid Inputs' });
+  }
 
-  return c.json({
-    id: post.id,
-  });
+  try {
+    const post = await prisma.post.create({
+      data: {
+        title: body.title,
+        content: body.content,
+        authorId: userId,
+      },
+    });
+
+    return c.json({
+      id: post.id,
+    });
+  } catch (e) {
+    c.status(404);
+    return c.json({ error: e });
+  }
 });
 
 /***************************** Edit the Blog *****************************************/
@@ -92,34 +107,46 @@ blogRouter.put('/', async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
 
-  const blog = await prisma.post.findUnique({
-    where: {
-      id: body.id,
-    },
-  });
+  const { success } = updateBlogInput.safeParse(body);
 
-  if (!blog) {
+  if (!success) {
+    c.status(400);
+    return c.json({ error: 'Invalid Inputs' });
+  }
+
+  try {
+    const blog = await prisma.post.findUnique({
+      where: {
+        id: body.id,
+      },
+    });
+
+    if (!blog) {
+      c.status(404);
+      return c.json({ error: 'Could not find the blog' });
+    }
+
+    if (blog.authorId != userId) {
+      c.status(403);
+      return c.json({ error: 'Unauthorized' });
+    }
+
+    await prisma.post.update({
+      where: {
+        id: body.id,
+        authorId: userId,
+      },
+      data: {
+        title: body.title,
+        content: body.content,
+      },
+    });
+
+    return c.text('Updated Post');
+  } catch (e) {
     c.status(404);
-    return c.json({ error: 'Could not find the blog' });
+    return c.json({ error: e });
   }
-
-  if (blog.authorId != userId) {
-    c.status(403);
-    return c.json({ error: 'Unauthorized' });
-  }
-
-  await prisma.post.update({
-    where: {
-      id: body.id,
-      authorId: userId,
-    },
-    data: {
-      title: body.title,
-      content: body.content,
-    },
-  });
-
-  return c.text('Updated Post');
 });
 
 /***************************** Get specific Blog *************************************/
