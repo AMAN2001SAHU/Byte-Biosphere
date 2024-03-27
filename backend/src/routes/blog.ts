@@ -27,13 +27,25 @@ export const blogRouter = new Hono<{
 
 /***************************** Get all Blogs *****************************************/
 
-blogRouter.get('/', async (c) => {
+blogRouter.get('/bulk', async (c) => {
   const prisma = new PrismaClient({
     datasourceUrl: c.env.DATABASE_URL,
   }).$extends(withAccelerate());
 
   try {
-    const blogs = await prisma.post.findMany();
+    const blogs = await prisma.post.findMany({
+      select: {
+        content: true,
+        title: true,
+        id: true,
+        createdAt: true,
+        author: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
 
     return c.json({ blogs });
   } catch (e) {
@@ -161,6 +173,17 @@ blogRouter.get('/:id', async (c) => {
     const blog = await prisma.post.findUnique({
       where: {
         id: blogId,
+      },
+      select: {
+        title: true,
+        content: true,
+        createdAt: true,
+        id: true,
+        author: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
 
